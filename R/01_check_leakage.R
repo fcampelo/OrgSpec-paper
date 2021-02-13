@@ -98,11 +98,11 @@ org.list <- data.frame(Name = orgs[idx],
 
 for (i in 1:nrow(org.list)){
   cat("\n Processing data for", org.list$Name[i])
-  tr.data  <- read.csv(paste0(org.list$path[i], "/data/splits/01_training.csv"))
+  tr.data  <- readRDS(paste0(org.list$path[i], "/data/splits/01_training.rds"))
   tr.ids   <- unique(tr.data$Info_epitope_id)
   tr.seqs  <- epits$epit_seq[epits$epitope_id %in% tr.ids]
     
-  ho.data  <- read.csv(paste0(org.list$path[i], "/data/splits/02_holdout.csv"))
+  ho.data  <- readRDS(paste0(org.list$path[i], "/data/splits/02_holdout.rds"))
   ho.ids   <- unique(ho.data$Info_epitope_id)
   ho.seqs  <- epits$epit_seq[epits$epitope_id %in% ho.ids]
   ho.prots <- prots$TSeq_sequence[prots$UID %in% unique(ho.data$Info_protein_id)]
