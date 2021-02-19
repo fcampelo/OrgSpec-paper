@@ -18,7 +18,7 @@ for (i in 1:nrow(Tr_specs)){
   ti <- Sys.time()
   cat("\nTraining models on data set", i, "of", nrow(Tr_specs), "\n")
   res[[i]] <- fit_models(train_path = Tr_specs$TrData[i],
-                         test_path = fTe, nfolds = 5, rn.seed = rn.seed)
+                         test_path = fTe, rn.seed = rn.seed)
   
   if(!dir.exists(Tr_specs$out_dir[i])) dir.create(Tr_specs$out_dir[i],
                                                   recursive = TRUE)
