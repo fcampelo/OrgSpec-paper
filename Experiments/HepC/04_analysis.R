@@ -41,11 +41,11 @@ preds_paths <- data.frame(
                "./output/iBCE-EL/PIP-EL.html",
                "./output/lbtope/downloadresult.txt",
                "./output/SVMtrip/"),
-  read.fun = c("../00_general_datasets/read_ABCPred.R",
-               "../00_general_datasets/read_Bepipred2.R",
-               "../00_general_datasets/read_iBCEEL.R",
-               "../00_general_datasets/read_lbtope.R",
-               "../00_general_datasets/read_SVMtrip.R"))
+  read.fun = c("../01_general_scrips/read_ABCPred.R",
+               "../01_general_scrips/read_Bepipred2.R",
+               "../01_general_scrips/read_iBCEEL.R",
+               "../01_general_scrips/read_lbtope.R",
+               "../01_general_scrips/read_SVMtrip.R"))
 # =========
 
 # Consolidate predictions by position
