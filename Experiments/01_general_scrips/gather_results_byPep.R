@@ -1,6 +1,7 @@
 gather_results_byPep <- function(mypeps_path, myres){
   
   myres2 <- readRDS(mypeps_path) %>%
+    as.data.frame() %>%
     dplyr::select(Info_epitope_id, Info_protein_id, Info_center_pos, Class) %>%
     dplyr::group_by(Info_epitope_id) %>%
     dplyr::summarise(Info_protein_id = first(Info_protein_id),
