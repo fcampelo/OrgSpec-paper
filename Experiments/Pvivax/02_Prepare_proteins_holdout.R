@@ -15,7 +15,7 @@ library(dplyr)
 library(data.table)
 library(seqinr)
 
-# Load basic epitope/protein data as well as split 3
+# Load basic epitope/protein data
 proteins      <- readRDS("../00_general_datasets/00_proteins_20201007.rds")
 epitopes      <- readRDS("../00_general_datasets/00_epitopes_20201006.rds")
 tax_load_file <- "../00_general_datasets/00_taxonomy_20201007.rds"
