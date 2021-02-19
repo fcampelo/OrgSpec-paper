@@ -97,3 +97,22 @@ tikz("../figures/res_all_pathogens.tex",
      width = 7.5, height = 9)
 mp
 dev.off()
+
+# To plot protein results (not ready yet)
+# 
+# plt3 <- ggplot(myres, aes(x = Info_center_pos, y = RF_os)) +
+# geom_point(aes(y = Class), colour = "#FF0000", alpha = 0.5, pch = 20) +
+#   geom_line() +
+#   facet_wrap(Info_UID ~ ., scales = "free", ncol = 3) +
+#   scale_y_discrete() +
+#   xlab("Protein position") + ylab("") +
+#   theme_light() +
+#   theme(strip.text = element_text(colour = "black"))
+# 
+# ggplot(dplyr::filter(myres, Info_UID == "A0A044V9S3"), 
+#        aes(x = Info_center_pos, y = RF_OrgSpec_class)) + 
+#   geom_line(lty = 2, alpha = .5) + 
+#   geom_point(aes(colour = as.factor(RF_OrgSpec_class)), show.legend = FALSE) + 
+#   ylab("Prediction") + xlab("Position") + 
+#   scale_y_continuous(breaks = c(-1,1), labels = c("Neg.", "Pos.")) + 
+#   theme_light()
