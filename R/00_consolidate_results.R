@@ -116,3 +116,12 @@ dev.off()
 #   ylab("Prediction") + xlab("Position") + 
 #   scale_y_continuous(breaks = c(-1,1), labels = c("Neg.", "Pos.")) + 
 #   theme_light()
+# 
+# ggplot(myprobs, 
+#        aes(x = Info_center_pos, 
+#            y = RF_OrgSpec_class, 
+#            colour = RF_OrgSpec_prob)) + 
+#   geom_point(size = .2) + geom_line(lwd = .1) +
+#   facet_wrap(Info_UID ~ ., scales = "free", ncol = 3) + 
+#   ylim(-1, 1) + scale_colour_continuous(type = "viridis")
+

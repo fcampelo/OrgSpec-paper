@@ -11,11 +11,13 @@ for (i in seq_along(unique(myres$Info_UID))){
     # Extract only the i-th protein
     dplyr::filter(Info_UID == unique(myres$Info_UID)[i]) %>%
     # Flag the start of each individual predicted epitope
-    dplyr::mutate(IsBreak = (RF_OrgSpec_class == 1 & dplyr::lag(RF_OrgSpec_class, default = 1) == -1)) %>%
+    dplyr::mutate(IsBreak = (RF_OrgSpec_class == 1 & dplyr::lag(RF_OrgSpec_class, default = 1) == -1)) 
+  
+  tmp2 <- tmp %>%
     dplyr::filter(RF_OrgSpec_class == 1) 
   
-  if (nrow(tmp) > 0){
-    tmp <- tmp %>%
+  if (nrow(tmp2) > 0){
+    tmp2 <- tmp2 %>%
       # Give each predicted epitope a number
       dplyr::mutate(EpNumber = cumsum(IsBreak)) %>%
       # Summarise the average probability of that epitope as the strength of its prediction
@@ -29,9 +31,11 @@ for (i in seq_along(unique(myres$Info_UID))){
   
   # Consolidate results
   if (i == 1){
-    mypreds <- tmp
+    myprobs <- tmp
+    mypreds <- tmp2
   } else {
-    mypreds <- rbind(mypreds, tmp)
+    myprobs <- rbind(myprobs, tmp)
+    mypreds <- rbind(mypreds, tmp2)
   }
 }
 
@@ -39,4 +43,8 @@ mypreds <- mypreds %>%
   arrange(dplyr::desc(Prob)) %>%
   dplyr::select(-EpNumber)
 
-saveRDS(mypreds, "./output/consolidated_preds.rds")
+myprobs <- myprobs %>%
+  dplyr::select(-Class, -IsBreak)
+
+saveRDS(list(mypreds = mypreds,myprobs = myprobs), 
+        "./output/consolidated_preds.rds")
