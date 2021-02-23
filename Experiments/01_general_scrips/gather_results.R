@@ -13,7 +13,8 @@ gather_results <- function(mydata_path, res_paths, preds_paths){
       res <- readRDS(paste0(res_paths$path[i], "/preds.rds")) %>%
         dplyr::mutate(`.pred_class` = epitopes::smooth_predictions(as.numeric(as.character(`.pred_class`)),
                                                                    window_size = nchar(mydata$Info_window_seq[1]),
-                                                                   type = "mode"),
+                                                                   type    = "minsize",
+                                                                   minsize = 8),
                       Info_center_pos = as.numeric(Info_center_pos)) %>%
         dplyr::rename(!!paste0(res_paths$name[i], "_class") := .pred_class,
                       !!paste0(res_paths$name[i], "_prob")  := .pred_prob)
