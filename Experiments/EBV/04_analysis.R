@@ -13,6 +13,7 @@ source("../01_general_scrips/gather_results_byPep.R")
 source("../01_general_scrips/calc_perf.R")
 source("../01_general_scrips/bootstrap_functions.R")
 source("../01_general_scrips/make_plot2.R")
+source("../01_general_scrips/sort_predictions.R")
 
 # Set PRNG seed
 set.seed(20210107)
@@ -105,9 +106,12 @@ Pvals <- diff_boot %>%
   dplyr::mutate(across(!starts_with("METHOD"),
                        ~p.adjust(.x, method = "BH")))
 
-saveRDS(object = list(myres       = myres,
-                      myres_pep   = myres_pep,
-                      myperf_pep  = myperf_pep,
-                      myplot_pep  = mp_pep,
-                      Pvals_pep   = Pvals),
+predlist <- sort_predictions(myres)
+
+saveRDS(object = c(list(myres       = myres,
+                        myres_pep   = myres_pep,
+                        myperf_pep  = myperf_pep,
+                        myplot_pep  = mp_pep,
+                        Pvals_pep   = Pvals),
+                   predlist),
         file = "./output/analysis.rds")
