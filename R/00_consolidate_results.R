@@ -3,6 +3,7 @@
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
+library(ggnewscale)
 library(ggforce)
 library(reshape2)
 library(tikzDevice)
@@ -124,85 +125,138 @@ ggplot(df, aes(x       = Method,
         plot.margin = margin(2, 2, 2, 0))
 dev.off()
 
+
 # Generate protein prediction map examples for paper
+# (version 3)
 for (i in seq_along(preds)){
   tmp <- preds[[i]]$myprobs %>%
-    dplyr::mutate(IsNew = as.numeric(RF_OrgSpec_class == 1 & is.na(Class)),
-                  IsOld = as.numeric(RF_OrgSpec_class == 1 & (Class == 1)),
-                  Info_UID = paste0(dirs[i], ":", Info_UID))
-  tmp$IsNew[which(!tmp$IsNew)] <- NA
-  tmp$IsOld[which(!tmp$IsOld)] <- NA
-  tmp$RF_OrgSpec_class[which(tmp$RF_OrgSpec_class == -1)] <- 0
-  tmp$Class[which(tmp$Class == -1)] <- NA
+    dplyr::mutate(Prediction = (1 + RF_OrgSpec_class) / 2,
+                  Class      = (1 + Class) / 2,
+                  PosPred    = Prediction / Prediction,
+                  IsNew      = factor(Prediction & Class,
+                                      levels = c(TRUE, FALSE, NA),
+                                      labels = c("Known epitope", NA, "New epitope"),
+                                      exclude = NULL),
+                  Info_UID = paste0(dirs[i], ": ", Info_UID)) %>%
+    dplyr::select(-RF_OrgSpec_class)
   
-  # generate 6 panels/figure, split multiple figs if needed
-  for (j in 1:ceiling(length(unique(preds[[i]]$myprobs$Info_UID)) / 3)){
-    st <- 1 + (j - 1) * 3
-    en <- st + 2
-    mp <- tmp %>%
-      dplyr::filter(Info_UID %in% unique(Info_UID)[st:en]) %>%
-      ggplot(aes(x = Info_center_pos)) +
-      geom_point(aes(y = 1.03 * Class), size = .2, pch = 20, alpha = .3) + 
-      geom_line(aes(y = RF_OrgSpec_class), lwd = .1) + 
-      geom_point(aes(y = IsOld), col = "#628DFC", size = .5, pch = 20) +
-      geom_point(aes(y = IsNew), col = "#FC8D62", size = 1, pch = 20) +
-      geom_line(aes(y = RF_OrgSpec_prob, colour = RF_OrgSpec_prob), 
-                lwd = .1, show.legend = FALSE) +
-      scale_colour_viridis_c(direction = -1, begin = .25, end = .75) +
-      facet_wrap(Info_UID ~ ., scales = "free", ncol = 3) +
-      ylim(0, 1.05) + ylab("Prediction") + xlab("Protein Position") +
-      theme_light() + 
-      theme(strip.text  = element_text(colour = "black", face = "bold"),
-            axis.text.x = element_text(size = 8),
-            plot.margin = margin(2, 2, 2, 2),
-            legend.position = "bottom")
-    
-    ggsave(plot = mp, 
-           filename = paste0("../figures/prot_", dirs[i], "-", j, ".png"), 
-           width = 10, height = 2, units = "in")
+  
+  mp <- tmp %>%
+    ggplot(aes(x = Info_center_pos,
+               y = Class)) +
+    geom_point(size = 2, pch = 73, col = "#99dd99") +
+    geom_line(aes(y = Prediction),
+              lwd = .1, show.legend = FALSE) +
+    geom_point(data = subset(tmp, !is.na(IsNew)),
+               aes(y = PosPred, colour = IsNew), 
+               size = .6, pch = 15) +
+    scale_colour_manual(values = c("#118811", "#992222")) +
+    new_scale_color() +
+    geom_line(aes(y = RF_OrgSpec_prob, colour = RF_OrgSpec_prob),
+              lwd = .1, show.legend = FALSE) +
+    scale_colour_gradient(low = "#55bbbb",high = "#cc8888") +
+    ylim(0, 1.05) + ylab("Prediction") + xlab("Protein Position") +
+    theme_light() +
+    theme(strip.text  = element_text(colour = "black", face = "bold"),
+          axis.text.x = element_text(size = 8),
+          plot.margin = margin(3, 3, 3, 3),
+          legend.title = element_blank(),
+          legend.position = "none",
+          legend.background = element_rect(colour = "#aaaaaa"))
+  
+  for (j in seq(1, ceiling(length(unique(tmp$Info_UID)) / 6))){
+    x <- mp + facet_wrap_paginate(Info_UID ~ ., 
+                                  scales = "free",
+                                  nrow = 2, ncol = 3, page = j)
+    ggsave(plot = x,
+           filename = paste0("../figures/prot_", dirs[i], "-", j, ".png"),
+           width = 10, height = 3, units = "in")
   }
 }
 
 
 
 
-
-
-
-
-
-
-# # Generate protein prediction map examples for paper
-library(ggnewscale)
-for (i in seq_along(preds)){
-  tmp <- preds[[i]]$myprobs %>%
-    dplyr::mutate(IsNew = as.numeric(RF_OrgSpec_class == 1 & is.na(Class)))
-  tmp$IsNew[which(!tmp$IsNew)] <- NA
-  tmp$RF_OrgSpec_class[which(tmp$RF_OrgSpec_class == -1)] <- 0
-  
-  mp <- tmp %>%
-    ggplot(aes(x = Info_center_pos,
-               y = RF_OrgSpec_class)) +
-    geom_point(aes(colour = as.factor(RF_OrgSpec_class)),
-               size = .5, pch = 20, show.legend = FALSE) +
-    scale_colour_manual(values = c("#66C2A5", "#628DFC")) +
-    geom_line(lwd = .1, show.legend = FALSE) +
-    geom_point(aes(y = 1.02 * IsNew, colour = NULL),
-               col = "#FC8D62", size = .5, pch = 20, show.legend = FALSE) +
-    new_scale_color() +
-    geom_line(aes(y = RF_OrgSpec_prob, colour = RF_OrgSpec_prob),
-              lwd = .1, show.legend = FALSE) +
-    scale_colour_viridis_c(direction = -1, begin = .25, end = .75) +
-    facet_wrap(Info_UID ~ ., scales = "free") +
-    ylim(0, 1.05) + ylab("Prediction") + xlab("Protein Position") +
-    theme_light() +
-    theme(strip.text  = element_text(colour = "black", face = "bold"),
-          axis.text.x = element_text(size = 8),
-          plot.margin = margin(2, 2, 2, 2),
-          legend.position = "bottom") +
-    labs(col = "Epitope prob.") +
-    ggtitle(paste0("Predicted epitopes: ", dirs[i]))
-  
-  print(mp)
-}
+# # # Generate protein prediction map examples for paper
+# (version 2)
+# for (i in seq_along(preds)){
+#   tmp <- preds[[i]]$myprobs %>%
+#     dplyr::mutate(IsNew = as.numeric(RF_OrgSpec_class == 1 & is.na(Class)))
+#   tmp$IsNew[which(!tmp$IsNew)] <- NA
+#   tmp$RF_OrgSpec_class[which(tmp$RF_OrgSpec_class == -1)] <- 0
+#   
+#   mp <- tmp %>%
+#     ggplot(aes(x = Info_center_pos,
+#                y = RF_OrgSpec_class)) +
+#     geom_point(aes(colour = as.factor(RF_OrgSpec_class)),
+#                size = .5, pch = 20, show.legend = FALSE) +
+#     scale_colour_manual(values = c("#66C2A5", "#628DFC")) +
+#     geom_line(lwd = .1, show.legend = FALSE) +
+#     geom_point(aes(y = 1.02 * IsNew, colour = NULL),
+#                col = "#FC8D62", size = .5, pch = 20, show.legend = FALSE) +
+#     new_scale_color() +
+#     geom_line(aes(y = RF_OrgSpec_prob, colour = RF_OrgSpec_prob),
+#               lwd = .1, show.legend = FALSE) +
+#     scale_colour_viridis_c(direction = -1, begin = .25, end = .75) +
+#     facet_wrap(Info_UID ~ ., scales = "free") +
+#     ylim(0, 1.05) + ylab("Prediction") + xlab("Protein Position") +
+#     theme_light() +
+#     theme(strip.text  = element_text(colour = "black", face = "bold"),
+#           axis.text.x = element_text(size = 8),
+#           plot.margin = margin(2, 2, 2, 2),
+#           legend.position = "bottom") +
+#     labs(col = "Epitope prob.")
+#   
+#       ggsave(plot = mp,
+#              filename = paste0("../figures/prot_", dirs[i], "-", j, ".png"),
+#              width = 10, height = 5, units = "in")
+#   print(mp)
+# }
 # 
+
+
+
+
+
+
+
+# Generate protein prediction map examples for paper
+# (version 1)
+# for (i in seq_along(preds)){
+#   tmp <- preds[[i]]$myprobs %>%
+#     dplyr::mutate(IsNew = as.numeric(RF_OrgSpec_class == 1 & is.na(Class)),
+#                   IsOld = as.numeric(RF_OrgSpec_class == 1 & (Class == 1)),
+#                   Info_UID = paste0(dirs[i], ":", Info_UID))
+#   tmp$IsNew[which(!tmp$IsNew)] <- NA
+#   tmp$IsOld[which(!tmp$IsOld)] <- NA
+#   tmp$RF_OrgSpec_class[which(tmp$RF_OrgSpec_class == -1)] <- 0
+#   tmp$Class[which(tmp$Class == -1)] <- NA
+#   
+#   # generate 6 panels/figure, split multiple figs if needed
+#   for (j in 1:ceiling(length(unique(preds[[i]]$myprobs$Info_UID)) / 6)){
+#     st <- 1 + (j - 1) * 6
+#     en <- st + 5
+#     mp <- tmp %>%
+#       dplyr::filter(Info_UID %in% unique(Info_UID)[st:en]) %>%
+#       ggplot(aes(x = Info_center_pos)) +
+#       geom_point(aes(y = 1.03 * Class), size = .2, pch = 20, alpha = .3) + 
+#       geom_line(aes(y = RF_OrgSpec_class), lwd = .1) + 
+#       geom_point(aes(y = IsOld), col = "#628DFC", size = .5, pch = 20) +
+#       geom_point(aes(y = IsNew), col = "#FC8D62", size = 1, pch = 20) +
+#       geom_line(aes(y = RF_OrgSpec_prob, colour = RF_OrgSpec_prob), 
+#                 lwd = .1, show.legend = FALSE) +
+#       scale_colour_viridis_c(direction = -1, begin = .25, end = .75) +
+#       facet_wrap(Info_UID ~ ., scales = "free", ncol = 3) +
+#       ylim(0, 1.05) + ylab("Prediction") + xlab("Protein Position") +
+#       theme_light() + 
+#       theme(strip.text  = element_text(colour = "black", face = "bold"),
+#             axis.text.x = element_text(size = 8),
+#             plot.margin = margin(2, 2, 2, 2),
+#             legend.position = "bottom")
+#     
+#     ggsave(plot = mp, 
+#            filename = paste0("../figures/prot_", dirs[i], "-", j, ".png"), 
+#            width = 10, height = 3, units = "in")
+#   }
+# }
+
