@@ -1,20 +1,20 @@
 sort_predictions <- function(myres){
-  
+
   myres <- myres %>%
-    dplyr::select(Info_UID, Info_center_pos, Class, 
+    dplyr::select(Info_UID, Info_center_pos, Class,
                   RF_OrgSpec_prob, RF_OrgSpec_class)
-  
+
   for (i in seq_along(unique(myres$Info_UID))){
-    
+
     tmp <- myres %>%
       # Extract only the i-th protein
       dplyr::filter(Info_UID == unique(myres$Info_UID)[i]) %>%
       # Flag the start of each individual predicted epitope
-      dplyr::mutate(IsBreak = (RF_OrgSpec_class == 1 & dplyr::lag(RF_OrgSpec_class, default = 1) == -1)) 
-    
+      dplyr::mutate(IsBreak = (RF_OrgSpec_class == 1 & dplyr::lag(RF_OrgSpec_class, default = 1) == -1))
+
     tmp2 <- tmp %>%
-      dplyr::filter(RF_OrgSpec_class == 1) 
-    
+      dplyr::filter(RF_OrgSpec_class == 1)
+
     if (nrow(tmp2) > 0){
       tmp2 <- tmp2 %>%
         # Give each predicted epitope a number
@@ -27,7 +27,7 @@ sort_predictions <- function(myres){
                          length    = end_pos - start_pos + 1,
                          Prob      = mean(RF_OrgSpec_prob))
     }
-    
+
     # Consolidate results
     if (i == 1){
       myprobs <- tmp
@@ -37,13 +37,13 @@ sort_predictions <- function(myres){
       mypreds <- rbind(mypreds, tmp2)
     }
   }
-  
+
   mypreds <- mypreds %>%
     arrange(dplyr::desc(Prob)) %>%
     dplyr::select(-EpNumber)
-  
+
   myprobs <- myprobs %>%
     dplyr::select(-IsBreak)
-  
+
   return(list(mypreds = mypreds,myprobs = myprobs))
 }

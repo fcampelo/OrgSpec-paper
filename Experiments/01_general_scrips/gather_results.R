@@ -1,12 +1,12 @@
 gather_results <- function(mydata_path, res_paths, preds_paths){
   require(dplyr)
-  
+
   # Preprocess results
   mydata  <- readRDS(mydata_path) %>%
     as.data.frame() %>%
     dplyr::mutate(Class = as.factor(Class)) %>%
     dplyr::mutate(across(starts_with("Info"), as.character))
-  
+
   # Read our results
   for (i in seq_along(res_paths$name)){
     if(dir.exists(res_paths$path[i])){
@@ -18,8 +18,8 @@ gather_results <- function(mydata_path, res_paths, preds_paths){
                       Info_center_pos = as.numeric(Info_center_pos)) %>%
         dplyr::rename(!!paste0(res_paths$name[i], "_class") := .pred_class,
                       !!paste0(res_paths$name[i], "_prob")  := .pred_prob)
-      
-      if (!exists("myres")){
+
+      if (i == 1){
         myres <- res
       } else {
         myres <- myres %>%
@@ -27,7 +27,7 @@ gather_results <- function(mydata_path, res_paths, preds_paths){
       }
     }
   }
-  
+
   # Read results from literature predictors
   for (i in seq_along(preds_paths$name)){
     if(dir.exists(preds_paths$path[i]) || file.exists(preds_paths$path[i])){
@@ -37,6 +37,6 @@ gather_results <- function(mydata_path, res_paths, preds_paths){
         dplyr::left_join(res, by = c("Info_UID", "Info_center_pos"))
     }
   }
-  
+
   return(myres)
 }

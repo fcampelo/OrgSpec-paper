@@ -19,9 +19,9 @@ source("../01_general_scrips/sort_predictions.R")
 set.seed(20210107)
 
 # Basic data
-proteins <- readRDS("../00_general_datasets/00_proteins_20201007.rds")
-epitopes <- readRDS("../00_general_datasets/00_epitopes_20201006.rds")
-tax_path <- "../00_general_datasets/00_taxonomy_20201007.rds"
+# proteins <- readRDS("../00_general_datasets/00_proteins_20201007.rds")
+# epitopes <- readRDS("../00_general_datasets/00_epitopes_20201006.rds")
+# tax_path <- "../00_general_datasets/00_taxonomy_20201007.rds"
 
 # Paths
 mydata_path <- "./data/splits/holdout_prots_w.rds"
@@ -53,17 +53,17 @@ myres  <- gather_results(mydata_path = mydata_path,
                          preds_paths = preds_paths)
 
 # Consolidate predictions by peptide
-myres_pep <- gather_results_byPep(mypeps_path = mypeps_path, 
+myres_pep <- gather_results_byPep(mypeps_path = mypeps_path,
                                   myres       = myres)
-myperf_pep <- calc_perf(df          = myres_pep, 
-                        res_names   = res_paths$name, 
+myperf_pep <- calc_perf(df          = myres_pep,
+                        res_names   = res_paths$name,
                         preds_names = preds_paths$name)
 
 # Prepare plots
 mp_pep <- make_plot2(df = myperf_pep, linepos = 3.5, plot_rows = 2)
 
 if(!dir.exists("./figures")) dir.create("./figures")
-ggplot2::ggsave("./figures/res_Ov_byPep.png", plot = mp_pep, 
+ggplot2::ggsave("./figures/res_Ov_byPep.png", plot = mp_pep,
                 width = 8, height = 5, units = "in")
 
 tikz("./figures/res_Ov_byPep.tex",
@@ -76,22 +76,19 @@ dev.off()
 # Using results by peptide
 
 # Estimate bootstrap distribution of differences UNDER THE NULL HYPOTHESES
-ref.col   <- grep("RF_OrgSpec_class", names(myres_pep))
-cmp.cols  <- grep("_class", names(myres_pep))
-cmp.cols  <- cmp.cols[-which(cmp.cols == ref.col)]
-diff_boot <- parallel::mclapply(1:10000,
+ref <- "RF_OrgSpec"
+nBoot.pval <- 1000
+diff_boot <- parallel::mclapply(1:nBoot.pval,
                                 FUN = boot_diffs,
                                 df  = myres_pep,
-                                ref.col  = ref.col,
-                                cmp.cols = cmp.cols,
+                                ref  = ref,
                                 mc.cores = parallel::detectCores() - 1,
                                 mc.set.seed = 20210201) %>%
   dplyr::bind_rows() %>%
   dplyr::rename_with(toupper)
 
 # Get actual observed differences
-diff_obs <- boot_diffs(NA, df = myres_pep, ref.col  = ref.col,
-                       cmp.cols = cmp.cols) %>%
+diff_obs <- boot_diffs(NA, df = myres_pep, ref = ref) %>%
   dplyr::rename_with(toupper)
 
 diff_boot <- rbind(diff_obs, diff_boot)
@@ -100,7 +97,7 @@ Pvals <- diff_boot %>%
   dplyr::group_by(METHOD1, METHOD2) %>%
   dplyr::summarise(across(!starts_with("METHOD"),
                           function(x){
-                            (sum(abs(x) >= abs(dplyr::first(x))) - 1) / (n() - 1)}), 
+                            (sum(abs(x) >= abs(dplyr::first(x)))) / (n() - 1)}),
                    .groups = "drop") %>%
   # Correct p-values for MHT using Benjamini-Hochberg
   dplyr::mutate(across(!starts_with("METHOD"),
@@ -112,6 +109,7 @@ saveRDS(object = c(list(myres       = myres,
                         myres_pep   = myres_pep,
                         myperf_pep  = myperf_pep,
                         myplot_pep  = mp_pep,
-                        Pvals_pep   = Pvals),
+                        Pvals_pep   = Pvals,
+                        nBoot.pval  = nBoot.pval),
                    predlist),
         file = "./output/analysis.rds")

@@ -13,29 +13,53 @@ preds <- vector("list", length(dirs))
 names(preds) <- dirs
 
 for (i in seq_along(dirs)){
-  mydata     <- readRDS(paste0("../Experiments/", 
-                               dirs[i], "/output/analysis.rds")) 
-  
+  mydata     <- readRDS(paste0("../Experiments/", dirs[i], "/output/analysis.rds"))
+
   # Extract prediction data
   preds[[i]]$mypreds <- mydata$mypreds
   preds[[i]]$myprobs <- mydata$myprobs
-  
+
   # Extract performance data
   tmp <- mydata$myperf_pep %>%
     dplyr::mutate(Organism = dirs[i]) %>%
     dplyr::filter(!(Metric %in% c("SENS", "SPEC")))
-  
+
   # Extract p-values
   tmp2 <- mydata$Pvals_pep %>%
     dplyr::mutate(Organism = dirs[i])
-  
+
+  # Extract ROC curves
+  cl.cols <- grep("_class", names(mydata$myres_pep))
+  pr.cols <- grep("_prob", names(mydata$myres_pep))
+  for (j in seq_along(cl.cols)){
+    myperf <- epitopes::calc_performance(truth = mydata$myres_pep$Class,
+                                         pred = mydata$myres_pep[, cl.cols[j]],
+                                         prob = mydata$myres_pep[, pr.cols[j]],
+                                         ret.as.list = TRUE)
+    if (j == 1){
+      tmp3 <- data.frame(Organism = dirs[i],
+                         Method = gsub("_class", "", names(mydata$myres_pep)[cl.cols[j]]),
+                         TPR    = myperf$tpr,
+                         FPR    = myperf$fpr)
+    } else {
+      tmp3 <- rbind(tmp3,
+                    data.frame(Organism = dirs[i],
+                               Method = gsub("_class", "", names(mydata$myres_pep)[cl.cols[j]]),
+                               TPR    = myperf$tpr,
+                               FPR    = myperf$fpr))
+    }
+  }
+
   if (i == 1){
     df    <- tmp
     pvals <- tmp2
+    rocs  <- tmp3
   } else {
     df    <- rbind(df, tmp)
     pvals <- rbind(pvals, tmp2)
+    rocs  <- rbind(rocs, tmp3)
   }
+  nBoot.pval = mydata$nBoot.pval
 }
 
 # prepare p-value data frame
@@ -43,17 +67,17 @@ pvals <- pvals %>%
   ungroup() %>%
   dplyr::select(-METHOD1) %>%
   dplyr::rename(Method = METHOD2) %>%
-  reshape2::melt(id.vars = c("Method", "Organism"), 
-                 variable.name = "Metric", 
+  reshape2::melt(id.vars = c("Method", "Organism"),
+                 variable.name = "Metric",
                  value.name = "pValue") %>%
   dplyr::mutate(Method = gsub("_", "-", Method, fixed = TRUE),
-                pValue = signif(pValue, 2))
+                pValue = round(pValue, 3))
 
 # Method and perf. metric labels for plotting
 methods <- c("RF-OrgSpec","RF-Hybrid","RF-Heter",
              "ABCpred", "Bepipred2", "iBCE-EL", "LBtope", "SVMtrip")
 
-metrics <- c("ACCURACY", "PPV", "NPV", "MCC")
+metrics <- c("ACCURACY", "AUC", "PPV", "NPV", "MCC")
 
 # Add p-values to results df.
 df <- df %>%
@@ -70,19 +94,22 @@ df <- df %>%
 
 df$Result[df$pValue > 0.05] <- "non-signif"
 df$Result[df$Method == "RF-OrgSpec"] <- "ref. method"
-df$Result <- factor(df$Result, 
+df$Result <- factor(df$Result,
                     levels = c("ref. method", "non-signif", "better", "worse"),
                     ordered = TRUE)
 df$pValTex <- df$pValue
-df$pValTex[df$pValTex == 0] <- "$<0.0001$"
-df$pValue[df$pValue == 0] <- "<0.0001"
+df$pValTex[df$pValTex <= .001] <- paste0("$<0.001$")
+df$pValue[df$pValue <= .001] <- paste0("<0.001")
+
+df$pValTex[df$pValTex >= .99] <- paste0("$>0.99$")
+df$pValue[df$pValue >= 0.99] <- paste0(">0.99")
 
 # Define colour map
-mycols <- c("#555555", "#7570c3", "#d95f02", "#1b9e77")
+mycols <- c("#555555", "#7570c3", "#1b9e77", "#d95f02")
 
 mp <- ggplot(df, aes(x       = Method,
-                     y       = Value, 
-                     ymin    = Value - StdErr, 
+                     y       = Value,
+                     ymin    = Value - StdErr,
                      ymax    = Value + StdErr,
                      colour  = Result)) +
   geom_pointrange(fatten = 2, size = 1, show.legend = FALSE) +
@@ -91,23 +118,23 @@ mp <- ggplot(df, aes(x       = Method,
             nudge_x = -0.4, nudge_y = df$nudge_dir * 0.06) +
   ylab("Estimated performance") + xlab("") +
   facet_grid(Organism ~ Metric, scales = "free") +
-  geom_vline(xintercept = 3.35, size = .2, lty = 2) + 
-  coord_flip() + 
+  geom_vline(xintercept = 3.35, size = .2, lty = 2) +
+  coord_flip() +
   theme_light() +
   theme(strip.text  = element_text(colour = "black", face = "bold"),
         axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
         axis.text.y = element_text(size = 10),
         plot.margin = margin(2, 2, 2, 0))
 
-ggsave(plot = mp, filename = "../figures/res_all_pathogens.png", 
+ggsave(plot = mp, filename = "../figures/res_all_pathogens.png",
        width = 10, height = 10, units = "in")
 
 # Save as tikz figure
 tikz("../figures/res_all_pathogens.tex",
-     width = 7.5, height = 9)
+     width = 7.5, height = 7.5)
 ggplot(df, aes(x       = Method,
-               y       = Value, 
-               ymin    = Value - StdErr, 
+               y       = Value,
+               ymin    = Value - StdErr,
                ymax    = Value + StdErr,
                colour  = Result)) +
   geom_pointrange(fatten = 2, size = 1, show.legend = FALSE) +
@@ -116,8 +143,8 @@ ggplot(df, aes(x       = Method,
             nudge_x = -0.4, nudge_y = df$nudge_dir * 0.08) +
   ylab("Estimated performance") + xlab("") +
   facet_grid(Organism ~ Metric, scales = "free") +
-  geom_vline(xintercept = 3.35, size = .2, lty = 2) + 
-  coord_flip() + 
+  geom_vline(xintercept = 3.35, size = .2, lty = 2) +
+  coord_flip() +
   theme_light() +
   theme(strip.text  = element_text(colour = "black", face = "bold"),
         axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
@@ -139,8 +166,8 @@ for (i in seq_along(preds)){
                                       exclude = NULL),
                   Info_UID = paste0(dirs[i], ": ", Info_UID)) %>%
     dplyr::select(-RF_OrgSpec_class)
-  
-  
+
+
   mp <- tmp %>%
     ggplot(aes(x = Info_center_pos,
                y = Class)) +
@@ -148,7 +175,7 @@ for (i in seq_along(preds)){
     geom_line(aes(y = Prediction),
               lwd = .1, show.legend = FALSE) +
     geom_point(data = subset(tmp, !is.na(IsNew)),
-               aes(y = PosPred, colour = IsNew), 
+               aes(y = PosPred, colour = IsNew),
                size = .6, pch = 15) +
     scale_colour_manual(values = c("#118811", "#992222")) +
     new_scale_color() +
@@ -163,9 +190,9 @@ for (i in seq_along(preds)){
           legend.title = element_blank(),
           legend.position = "none",
           legend.background = element_rect(colour = "#aaaaaa"))
-  
+
   for (j in seq(1, ceiling(length(unique(tmp$Info_UID)) / 6))){
-    x <- mp + facet_wrap_paginate(Info_UID ~ ., 
+    x <- mp + facet_wrap_paginate(Info_UID ~ .,
                                   scales = "free",
                                   nrow = 2, ncol = 3, page = j)
     ggsave(plot = x,
@@ -173,3 +200,32 @@ for (i in seq_along(preds)){
            width = 10, height = 3, units = "in")
   }
 }
+
+
+# ROC curves
+rocs$Method <- factor(gsub("_", "-", rocs$Method), levels = methods, ordered = TRUE)
+
+ggplot(rocs, aes(x = FPR, y = TPR, colour = Method)) +
+   geom_line() + geom_abline(slope = 1, lty = 2) + theme_light() +
+  scale_colour_brewer(type = "div") +
+  facet_grid(. ~ Organism, scales = "free") +
+  theme_light() +
+  theme(strip.text  = element_text(colour = "black", face = "bold"),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.position = "top",
+        legend.background = element_rect(fill = "#ffffff00",
+                                         colour = "#444444"))
+
+# Just O. volvulus
+ggplot(dplyr::filter(rocs, Organism == "Ovolvulus"),
+       aes(x = FPR, y = TPR, colour = Method)) +
+  geom_line() + geom_abline(slope = 1, lty = 2) + theme_light() +
+  scale_colour_brewer(type = "div") +
+  theme_light() +
+  theme(strip.text  = element_text(colour = "black", face = "bold"),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.position = "top",
+        legend.background = element_rect(fill = "#ffffff00",
+                                         colour = "#444444"))
