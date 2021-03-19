@@ -84,12 +84,14 @@ svmtrip.data <- rbind(svmtrip.data,
                         dplyr::mutate(Class = "Positive"))
 
 
-data.list <- list(abcpred  = abcpred.data,
-                  bepipred = bepipred.data,
-                  ibcel    = ibceel.data,
-                  lbtope   = lbtope.data,
-                  svmtrip  = svmtrip.data,
-                  OrgSpec  = NA)
+data.list <- list(ABCpred    = abcpred.data,
+                  Bepipred2  = bepipred.data,
+                  `iBCE-EL`  = ibceel.data,
+                  LBtope     = lbtope.data,
+                  SVMtrip    = svmtrip.data,
+                  RF_OrgSpec = NA,
+                  RF_Hybrid  = NA,
+                  RF_Heter   = NA)
 
 saveRDS(data.list, "../predictors_training_data/predictor_training_seqs.rds")
 

@@ -14,20 +14,20 @@ names(preds) <- dirs
 
 for (i in seq_along(dirs)){
   mydata     <- readRDS(paste0("../Experiments/", dirs[i], "/output/analysis.rds"))
-
+  
   # Extract prediction data
   preds[[i]]$mypreds <- mydata$mypreds
   preds[[i]]$myprobs <- mydata$myprobs
-
+  
   # Extract performance data
   tmp <- mydata$myperf_pep %>%
     dplyr::mutate(Organism = dirs[i]) %>%
     dplyr::filter(!(Metric %in% c("SENS", "SPEC")))
-
+  
   # Extract p-values
   tmp2 <- mydata$Pvals_pep %>%
     dplyr::mutate(Organism = dirs[i])
-
+  
   # Extract ROC curves
   cl.cols <- grep("_class", names(mydata$myres_pep))
   pr.cols <- grep("_prob", names(mydata$myres_pep))
@@ -49,7 +49,7 @@ for (i in seq_along(dirs)){
                                FPR    = myperf$fpr))
     }
   }
-
+  
   if (i == 1){
     df    <- tmp
     pvals <- tmp2
@@ -67,7 +67,7 @@ pvals <- pvals %>%
   ungroup() %>%
   dplyr::select(-METHOD1) %>%
   dplyr::rename(Method = METHOD2) %>%
-  reshape2::melt(id.vars = c("Method", "Organism"),
+  reshape2::melt(id.vars = c("Method", "Organism", "NoLeak"),
                  variable.name = "Metric",
                  value.name = "pValue") %>%
   dplyr::mutate(Method = gsub("_", "-", Method, fixed = TRUE),
@@ -83,7 +83,7 @@ metrics <- c("ACCURACY", "AUC", "PPV", "NPV", "MCC")
 df <- df %>%
   dplyr::mutate(Method = as.character(Method),
                 Metric = as.character(Metric)) %>%
-  dplyr::left_join(pvals, by = c("Organism", "Method", "Metric")) %>%
+  dplyr::left_join(pvals, by = c("Organism", "Method", "NoLeak", "Metric")) %>%
   dplyr::mutate(Method = factor(Method, levels = methods, ordered = TRUE),
                 Metric = factor(Metric, levels = metrics, ordered = TRUE),
                 pValue = pValue) %>%
@@ -107,11 +107,38 @@ df$pValue[df$pValue >= 0.99] <- paste0(">0.99")
 # Define colour map
 mycols <- c("#555555", "#7570c3", "#1b9e77", "#d95f02")
 
-mp <- ggplot(df, aes(x       = Method,
-                     y       = Value,
-                     ymin    = Value - StdErr,
-                     ymax    = Value + StdErr,
-                     colour  = Result)) +
+mp <- ggplot(filter(df, NoLeak == FALSE), 
+             aes(x       = Method,
+                 y       = Value,
+                 ymin    = Value - StdErr,
+                 ymax    = Value + StdErr,
+                 colour  = Result)) +
+  geom_pointrange(fatten = 2, size = 1, show.legend = FALSE) +
+  scale_color_manual(values = mycols) +
+  geom_text(aes(label = pValue), size = 2, col = "#222222",
+            nudge_x = -0.4, nudge_y = df$nudge_dir * 0.06) +
+  ylab("Estimated performance") + xlab("") +
+  facet_grid(Organism ~ Metric, scales = "free") +
+  geom_vline(xintercept = 3.35, size = .2, lty = 2) +
+  coord_flip() +
+  theme_light() +
+  theme(strip.text  = element_text(colour = "black", face = "bold"),
+        axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+        axis.text.y = element_text(size = 10),
+        plot.margin = margin(2, 2, 2, 0))
+
+ggsave(plot = mp, filename = "../figures/res_all_pathogens.png",
+       width = 8, height = 9, units = "in")
+
+# Repeat figure, considering only the zero-leakage test sets
+# Define colour map
+mycols <- c("#555555", "#7570c3", "#d95f02", "#1b9e77")
+mp <- ggplot(filter(df, NoLeak == TRUE), 
+             aes(x       = Method,
+                 y       = Value,
+                 ymin    = Value - StdErr,
+                 ymax    = Value + StdErr,
+                 colour  = Result)) +
   geom_pointrange(fatten = 2, size = 1, show.legend = FALSE) +
   scale_color_manual(values = mycols) +
   geom_text(aes(label = pValue), size = 2.5, col = "#222222",
@@ -126,31 +153,11 @@ mp <- ggplot(df, aes(x       = Method,
         axis.text.y = element_text(size = 10),
         plot.margin = margin(2, 2, 2, 0))
 
-ggsave(plot = mp, filename = "../figures/res_all_pathogens.png",
+ggsave(plot = mp, filename = "../figures/res_all_pathogens_noleak.png",
        width = 10, height = 10, units = "in")
 
-# Save as tikz figure
-tikz("../figures/res_all_pathogens.tex",
-     width = 7.5, height = 7.5)
-ggplot(df, aes(x       = Method,
-               y       = Value,
-               ymin    = Value - StdErr,
-               ymax    = Value + StdErr,
-               colour  = Result)) +
-  geom_pointrange(fatten = 2, size = 1, show.legend = FALSE) +
-  scale_color_manual(values = mycols) +
-  geom_text(aes(label = pValTex), size = 2.5, col = "#222222",
-            nudge_x = -0.4, nudge_y = df$nudge_dir * 0.08) +
-  ylab("Estimated performance") + xlab("") +
-  facet_grid(Organism ~ Metric, scales = "free") +
-  geom_vline(xintercept = 3.35, size = .2, lty = 2) +
-  coord_flip() +
-  theme_light() +
-  theme(strip.text  = element_text(colour = "black", face = "bold"),
-        axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
-        axis.text.y = element_text(size = 10),
-        plot.margin = margin(2, 2, 2, 0))
-dev.off()
+
+
 
 
 # Generate protein prediction map examples for paper
@@ -166,8 +173,8 @@ for (i in seq_along(preds)){
                                       exclude = NULL),
                   Info_UID = paste0(dirs[i], ": ", Info_UID)) %>%
     dplyr::select(-RF_OrgSpec_class)
-
-
+  
+  
   mp <- tmp %>%
     ggplot(aes(x = Info_center_pos,
                y = Class)) +
@@ -190,7 +197,7 @@ for (i in seq_along(preds)){
           legend.title = element_blank(),
           legend.position = "none",
           legend.background = element_rect(colour = "#aaaaaa"))
-
+  
   for (j in seq(1, ceiling(length(unique(tmp$Info_UID)) / 6))){
     x <- mp + facet_wrap_paginate(Info_UID ~ .,
                                   scales = "free",
@@ -206,7 +213,7 @@ for (i in seq_along(preds)){
 rocs$Method <- factor(gsub("_", "-", rocs$Method), levels = methods, ordered = TRUE)
 
 ggplot(rocs, aes(x = FPR, y = TPR, colour = Method)) +
-   geom_line() + geom_abline(slope = 1, lty = 2) + theme_light() +
+  geom_line() + geom_abline(slope = 1, lty = 2) + theme_light() +
   scale_colour_brewer(type = "div") +
   facet_grid(. ~ Organism, scales = "free") +
   theme_light() +
@@ -229,3 +236,35 @@ ggplot(dplyr::filter(rocs, Organism == "Ovolvulus"),
         legend.position = "top",
         legend.background = element_rect(fill = "#ffffff00",
                                          colour = "#444444"))
+
+
+
+
+
+
+
+
+# 
+# # Save as tikz figure
+# tikz("../figures/res_all_pathogens.tex",
+#      width = 7.5, height = 7.5)
+# ggplot(filter(df, NoLeak == FALSE), 
+#        aes(x       = Method,
+#            y       = Value,
+#            ymin    = Value - StdErr,
+#            ymax    = Value + StdErr,
+#            colour  = Result)) +
+#   geom_pointrange(fatten = 2, size = 1, show.legend = FALSE) +
+#   scale_color_manual(values = mycols) +
+#   geom_text(aes(label = pValTex), size = 2.5, col = "#222222",
+#             nudge_x = -0.4, nudge_y = df$nudge_dir * 0.08) +
+#   ylab("Estimated performance") + xlab("") +
+#   facet_grid(Organism ~ Metric, scales = "free") +
+#   geom_vline(xintercept = 3.35, size = .2, lty = 2) +
+#   coord_flip() +
+#   theme_light() +
+#   theme(strip.text  = element_text(colour = "black", face = "bold"),
+#         axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+#         axis.text.y = element_text(size = 10),
+#         plot.margin = margin(2, 2, 2, 0))
+# dev.off()

@@ -12,16 +12,19 @@ source("../01_general_scrips/gather_results.R")
 source("../01_general_scrips/gather_results_byPep.R")
 source("../01_general_scrips/calc_perf.R")
 source("../01_general_scrips/bootstrap_functions.R")
-source("../01_general_scrips/make_plot2.R")
+source("../01_general_scrips/make_plot3.R")
 source("../01_general_scrips/sort_predictions.R")
 
 # Set PRNG seed
 set.seed(20210107)
 
-# Basic data
-# proteins <- readRDS("../00_general_datasets/00_proteins_20201007.rds")
-# epitopes <- readRDS("../00_general_datasets/00_epitopes_20201006.rds")
-# tax_path <- "../00_general_datasets/00_taxonomy_20201007.rds"
+# Get training data from each predictor
+epits     <- readRDS("../00_general_datasets/00_epitopes_20201006.rds")
+tr.epits  <- unique(readRDS("./data/splits/01_training.rds")$Info_epitope_id)
+pred.tr.sets <- readRDS("../../predictors_training_data/predictor_training_seqs.rds")
+pred.tr.sets$RF_OrgSpec <- epits[epitope_id %in% tr.epits, .(Sequence = epit_seq)]
+pred.tr.sets$RF_Hybrid  <- pred.tr.sets$RF_OrgSpec
+pred.tr.sets$RF_Heter   <- data.frame(Sequence = "1234")
 
 # Paths
 mydata_path <- "./data/splits/holdout_prots_w.rds"
@@ -55,12 +58,19 @@ myres  <- gather_results(mydata_path = mydata_path,
 # Consolidate predictions by peptide
 myres_pep <- gather_results_byPep(mypeps_path = mypeps_path,
                                   myres       = myres)
-myperf_pep <- calc_perf(df          = myres_pep,
-                        res_names   = res_paths$name,
-                        preds_names = preds_paths$name)
 
-# Prepare plots
-mp_pep <- make_plot2(df = myperf_pep, linepos = 3.5, plot_rows = 2)
+df <- myres_pep %>%
+  left_join(epits[, .(Info_epitope_id = epitope_id, epit_seq)], 
+            by = "Info_epitope_id") %>%
+  dplyr::distinct()
+
+myperf_pep <- calc_perf(df           = df,
+                        res_names    = res_paths$name,
+                        preds_names  = preds_paths$name,
+                        pred.tr.sets = pred.tr.sets)
+
+# Prepare plot
+mp_pep <- make_plot3(df = myperf_pep, linepos = 3.5, plot_rows = 2)
 
 if(!dir.exists("./figures")) dir.create("./figures")
 ggplot2::ggsave("./figures/res_Ov_byPep.png", plot = mp_pep,
@@ -72,6 +82,7 @@ mp_pep
 dev.off()
 
 # === hypothesis testing === #
+# 1) Considering full holdout set
 # Reference method: RF (organism specific)
 # Using results by peptide
 
@@ -80,7 +91,7 @@ ref <- "RF_OrgSpec"
 nBoot.pval <- 1000
 diff_boot <- parallel::mclapply(1:nBoot.pval,
                                 FUN = boot_diffs,
-                                df  = myres_pep,
+                                df  = df,
                                 ref  = ref,
                                 mc.cores = parallel::detectCores() - 1,
                                 mc.set.seed = 20210201) %>%
@@ -101,7 +112,43 @@ Pvals <- diff_boot %>%
                    .groups = "drop") %>%
   # Correct p-values for MHT using Benjamini-Hochberg
   dplyr::mutate(across(!starts_with("METHOD"),
-                       ~p.adjust(.x, method = "BH")))
+                       ~p.adjust(.x, method = "BH")),
+                NoLeak = FALSE)
+
+
+# 2) Considering only zero-leakage subsets
+noleak_res <- lapply(pred.tr.sets,
+                     function(X){
+                       filter(df, !(epit_seq %in% X$Sequence))})
+
+# Estimate bootstrap distribution of differences UNDER THE NULL HYPOTHESES
+diff_boot <- parallel::mclapply(1:nBoot.pval,
+                                FUN = boot_diffs_nopair,
+                                df  = noleak_res,
+                                ref  = ref,
+                                mc.cores = parallel::detectCores() - 1,
+                                mc.set.seed = 20210201) %>%
+  dplyr::bind_rows() %>%
+  dplyr::rename_with(toupper)
+
+# Get actual observed differences
+diff_obs <- boot_diffs_nopair(NA, df = noleak_res, ref = ref) %>%
+  dplyr::rename_with(toupper)
+
+diff_boot <- rbind(diff_obs, diff_boot)
+
+Pvals_noleak <- diff_boot %>%
+  dplyr::group_by(METHOD1, METHOD2) %>%
+  dplyr::summarise(across(!starts_with("METHOD"),
+                          function(x){
+                            (sum(abs(x) >= abs(dplyr::first(x)))) / (n() - 1)}),
+                   .groups = "drop") %>%
+  # Correct p-values for MHT using Benjamini-Hochberg
+  dplyr::mutate(across(!starts_with("METHOD"),
+                       ~p.adjust(.x, method = "BH")),
+                NoLeak = TRUE)
+
+Pvals <- rbind(Pvals, Pvals_noleak)
 
 predlist <- sort_predictions(myres)
 
