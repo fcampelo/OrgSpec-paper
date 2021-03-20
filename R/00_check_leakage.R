@@ -88,10 +88,7 @@ data.list <- list(ABCpred    = abcpred.data,
                   Bepipred2  = bepipred.data,
                   `iBCE-EL`  = ibceel.data,
                   LBtope     = lbtope.data,
-                  SVMtrip    = svmtrip.data,
-                  RF_OrgSpec = NA,
-                  RF_Hybrid  = NA,
-                  RF_Heter   = NA)
+                  SVMtrip    = svmtrip.data)
 
 saveRDS(data.list, "../predictors_training_data/predictor_training_seqs.rds")
 
@@ -131,7 +128,6 @@ for (i in 1:nrow(org.list)){
                                   Len = nrow(ho.seqs)))
       }
     }
-    
   }
 }
 
@@ -144,11 +140,7 @@ leak_table <- leaks %>%
   tidyr::pivot_wider(names_from = Pred, values_from = Leak_prop, values_fill = 0)
 
 leak_table[is.na(leak_table)] <- 0
-leak_table  
-
-leaks %>% 
-  group_by(Org) %>% 
-  summarise(Len = first(Len))
+leak_table
 
 saveRDS(list(leaks = leaks, leak_table = leak_table), "../output/data_leaks.rds")
 
