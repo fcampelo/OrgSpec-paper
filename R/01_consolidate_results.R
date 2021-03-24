@@ -192,7 +192,7 @@ mp <- ggplot(rocs, aes(x = FPR, y = TPR, colour = Method)) +
                                          colour = "#444444"))
 
 ggsave(plot = mp, filename = "../figures/ROC_all.png",
-       width = 10, height = 5, units = "in")
+       width = 8, height = 4, units = "in")
 
 # Just O. volvulus
 mp <- ggplot(dplyr::filter(rocs, Organism == "Ovolvulus"),
