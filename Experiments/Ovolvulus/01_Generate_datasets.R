@@ -1,6 +1,6 @@
 # Install from github
 # > devtools::install_github("fcampelo/epitopes", 
-#                            ref = "v0.4.11-OrgSpec-paper")
+#                            ref = "v0.4.13-OrgSpec-paper")
 #
 # ============================================================================ #
 #
