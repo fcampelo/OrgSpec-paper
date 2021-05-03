@@ -10,7 +10,7 @@ ncpus    <- 7
 epitopes        <- readRDS("../00_general_datasets/00_epitopes_20201006.rds")
 data.train      <- readRDS("./data/splits/01_training.rds")
 pred.train.sets <- readRDS("../../predictors_training_data/predictor_training_seqs.rds")
-ho_prots        <- readRDS("./data/splits/holdout_prots_w.rds")
+ho_prots        <- readRDS("./data/splits/prots_df.rds")
 ho_peps         <- readRDS("./data/splits/02_holdout.rds")
 
 invisible(lapply(dir("../00_general_scripts/",

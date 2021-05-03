@@ -19,7 +19,7 @@ proteins <- readRDS("../00_general_datasets/00_proteins_20201007.rds")
 taxonomy <- readRDS("../00_general_datasets/00_taxonomy_20201007.rds")
 
 # Generate datasets
-source("../00_general_scrips/generate_datasets.R")
+source("../00_general_scripts/generate_datasets.R")
 generate_datasets(target.Org, hostIDs, removeIDs, rnd.seed,
                   nPos, nNeg,
                   epitopes, proteins, taxonomy,

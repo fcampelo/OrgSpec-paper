@@ -128,6 +128,8 @@ mp <- ggplot(filter(df, NoLeak == FALSE, Metric %in% c("ACCURACY", "AUC", "MCC")
 
 ggsave(plot = mp, filename = "../figures/res_all_pathogens_1.png",
        width = 7.5, height = 4.8, units = "in")
+ggsave(plot = mp, filename = "../figures/res_all_pathogens_1.tiff",
+       width = 7.5, height = 4.8, units = "in")
 
 # Plot SENS, PPV, NPV
 mp <- mp %+% dplyr::filter(df, NoLeak == FALSE,
@@ -136,6 +138,8 @@ mp <- mp %+% dplyr::filter(df, NoLeak == FALSE,
   scale_color_manual(values = c("#555555", "#7570c3", "#d95f02", "#1b9e77"))
 
 ggsave(plot = mp, filename = "../figures/res_all_pathogens_2.png",
+       width = 7.5, height = 4.8, units = "in")
+ggsave(plot = mp, filename = "../figures/res_all_pathogens_2.tiff",
        width = 7.5, height = 4.8, units = "in")
 
 # ============================================================================ #
@@ -172,6 +176,8 @@ mp <- ggplot(rocs, aes(x = FPR, y = TPR, colour = Method)) +
 
 ggsave(plot = mp, filename = "../figures/ROC_all.png",
        width = 8, height = 4, units = "in")
+ggsave(plot = mp, filename = "../figures/ROC_all.tiff",
+       width = 8, height = 4, units = "in")
 
 # O. volvulus ROC
 mp <- ggplot(dplyr::filter(rocs, Organism == "Ovolvulus"),
@@ -188,6 +194,8 @@ mp <- ggplot(dplyr::filter(rocs, Organism == "Ovolvulus"),
   guides(colour = guide_legend(override.aes = list(fill = NA)))
 
 ggsave(plot = mp, filename = "../figures/Ov_ROC.png",
+       width = 5, height = 4.5, units = "in")
+ggsave(plot = mp, filename = "../figures/Ov_ROC.tiff",
        width = 5, height = 4.5, units = "in")
 
 
@@ -235,6 +243,9 @@ for (i in seq_along(preds)){
                                   nrow = 3, ncol = 2, page = j)
     ggsave(plot = x,
            filename = paste0("../figures/prot_", dirs[i], "-", j, ".png"),
+           width = 10, height = 6, units = "in")
+    ggsave(plot = x,
+           filename = paste0("../figures/prot_", dirs[i], "-", j, ".tiff"),
            width = 10, height = 6, units = "in")
   }
 }
