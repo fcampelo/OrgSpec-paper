@@ -24,20 +24,21 @@ names(preds) <- sapply(dirs, function(x)strsplit(x, split = "_")[[1]][2])
 
 for (i in seq_along(dirs)){
   mydata <- readRDS(paste0(dirs[i], "/output/analysis.rds"))
-
+  
   # Extract predictions data
   preds[[i]]$mypreds <- mydata$mypreds
   preds[[i]]$myprobs <- mydata$myprobs
-
+  
   # Extract performance data
   tmp <- mydata$myperf_pep %>%
     dplyr::mutate(Organism = names(preds)[i]) %>%
-    dplyr::filter(Metric != c("SPEC", "F1")) # <-- not needed for the paper
-
+    dplyr::filter(!(Metric %in% c("SPEC", "F1"))) # <-- not needed for the paper
+  
   # Extract p-values
   tmp2 <- mydata$Pvals_pep %>%
+    dplyr::select(-SPEC) %>%                 # <-- not needed for the paper
     dplyr::mutate(Organism = names(preds)[i])
-
+  
   # Extract ROC curves
   cl.cols <- grep("_class", names(mydata$myres_pep))
   pr.cols <- grep("_prob", names(mydata$myres_pep))
@@ -59,15 +60,21 @@ for (i in seq_along(dirs)){
                                FPR    = myperf$fpr))
     }
   }
-
+  
+  tmp4 <- mydata$Pvals_pep.raw %>%
+    dplyr::select(-SPEC) %>%                 # <-- not needed for the paper
+    dplyr::mutate(Organism = names(preds)[i])
+  
   if (i == 1){
     df    <- tmp
     pvals <- tmp2
     rocs  <- tmp3
+    pvals.raw <- tmp4
   } else {
     df    <- rbind(df, tmp)
     pvals <- rbind(pvals, tmp2)
     rocs  <- rbind(rocs, tmp3)
+    pvals.raw <- rbind(pvals.raw, tmp4)
   }
 }
 
@@ -99,8 +106,8 @@ df$Result[df$Method == "RF-OrgSpec"] <- "ref. method"
 df$Result <- factor(df$Result,
                     levels = c("ref. method", "non-signif", "better", "worse"),
                     ordered = TRUE)
-df$pValue[df$pValue <= .001] <- paste0("<0.001")
-df$pValue[df$pValue >= 0.99] <- paste0(">0.99")
+df$pValue[df$pValue <= .01] <- paste0("<0.01")
+df$pValue[df$pValue >= 0.9] <- paste0(">0.9")
 
 
 # ============================================================================ #
@@ -144,18 +151,19 @@ ggsave(plot = mp, filename = "../figures/res_all_pathogens_2.tiff",
 
 # ============================================================================ #
 # Summary results table
-df %>%
-  select(Organism, Method, Metric, Value, NoLeak) %>%
-  mutate(Value = round(Value, 2)) %>%
+x <- df %>%
+  select(Organism, Method, Metric, Value, StdErr, NoLeak) %>%
+  mutate(Value  = round(Value, 2), 
+         StdErr = round(StdErr, 2),
+         Field  = paste0("SSS", Value, "PM ", StdErr, "SSS")) %>%
   group_by(Organism, Method, Metric) %>%
-  summarise(Value = ifelse(Organism == "HepC",
-                           paste0(first(Value), " (", last(Value), ")"),
-                           as.character(first(Value)))) %>%
+  summarise(Field = ifelse(Organism == "HepC",
+                           paste0(first(Field), " (", last(Field), ")"),
+                           as.character(first(Field)))) %>%
   ungroup() %>%
   distinct() %>%
   tidyr::pivot_wider(names_from = c(Metric),
-                     values_from = c(Value)) %>%
-  print(n = Inf)
+                     values_from = c(Field))
 
 # ============================================================================ #
 # Plot ROC curves
@@ -181,7 +189,7 @@ ggsave(plot = mp, filename = "../figures/ROC_all.tiff",
 
 # O. volvulus ROC
 mp <- ggplot(dplyr::filter(rocs, Organism == "Ovolvulus"),
-       aes(x = FPR, y = TPR, colour = Method)) +
+             aes(x = FPR, y = TPR, colour = Method)) +
   geom_line() + geom_abline(slope = 1, lty = 2) + theme_light() +
   scale_colour_brewer(type = "div") +
   theme_light() +
@@ -211,8 +219,8 @@ for (i in seq_along(preds)){
                                       labels = c("Known epitope", NA, "New epitope"),
                                       exclude = NULL)) %>%
     dplyr::select(-RF_OrgSpec_class)
-
-
+  
+  
   mp <- tmp %>%
     ggplot(aes(x = Info_center_pos,
                y = Class)) +
@@ -236,7 +244,7 @@ for (i in seq_along(preds)){
           legend.title = element_blank(),
           legend.position = "none",
           legend.background = element_rect(colour = "#aaaaaa"))
-
+  
   for (j in seq(1, ceiling(length(unique(tmp$Info_UID)) / 6))){
     x <- mp + facet_wrap_paginate(Info_UID ~ .,
                                   scales = "free",
@@ -269,3 +277,16 @@ X <- X$mypreds %>%
   dplyr::filter(`Average Prob.` >= 0.75)
 
 kableExtra::kable(X, format = "latex", longtable = TRUE, digits = 2)
+
+
+
+
+# Raw p-values table
+pvals.raw%>%
+  ungroup() %>%
+  dplyr::filter(NoLeak == FALSE) %>%
+  dplyr::mutate(Comparison = paste0(METHOD1, " vs. ", METHOD2),
+                Comparison = gsub("_", "-", Comparison, fixed = TRUE)) %>%
+  dplyr::select(Organism, Comparison, everything(), -METHOD1, -METHOD2, -NoLeak) %>%
+  dplyr::mutate(across(where(is.numeric), ~round(.x, digits = 3))) %>%
+  kableExtra::kable(format = "latex", longtable = TRUE)

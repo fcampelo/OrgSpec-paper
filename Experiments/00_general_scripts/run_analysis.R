@@ -70,7 +70,7 @@ run_analysis <- function(rnd.seed, epitopes, data.train, pred.train.sets,
     dplyr::group_by(METHOD1, METHOD2) %>%
     dplyr::summarise(across(!starts_with("METHOD"),
                             function(x){
-                              (sum(abs(x) >= abs(dplyr::first(x)))) / (n() - 1)}),
+                              (sum(abs(x) >= abs(dplyr::first(x)))) / n()}),
                      .groups = "drop")
   
   # Correct p-values for MHT using Benjamini-Hochberg

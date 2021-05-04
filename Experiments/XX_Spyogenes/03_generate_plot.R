@@ -97,6 +97,14 @@ mp <- ggplot(filter(df, NoLeak == FALSE),
         axis.text.y = element_text(size = 7))
 
 ggsave(plot = mp, filename = "../../figures/res_Spyogenes.png",
-       width = 7.5, height = 4.8, units = "in")
+       width = 6.5, height = 4, units = "in")
 ggsave(plot = mp, filename = "../../figures/res_Spyogenes.tiff",
-       width = 7.5, height = 4.8, units = "in")
+       width = 6.5, height = 4, units = "in")
+
+
+mydata$Pvals_pep.raw %>% 
+  dplyr::filter(NoLeak == FALSE) %>%
+  dplyr::select(-SPEC, -METHOD1, -NoLeak) %>%
+  dplyr::mutate(across(where(is.numeric), ~round(.x, digits = 3))) %>%
+  kableExtra::kable(format = "latex")
+
