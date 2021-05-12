@@ -245,16 +245,16 @@ for (i in seq_along(preds)){
           legend.position = "none",
           legend.background = element_rect(colour = "#aaaaaa"))
   
-  for (j in seq(1, ceiling(length(unique(tmp$Info_UID)) / 6))){
+  for (j in seq(1, ceiling(length(unique(tmp$Info_UID)) / 12))){
     x <- mp + facet_wrap_paginate(Info_UID ~ .,
                                   scales = "free",
-                                  nrow = 3, ncol = 2, page = j)
+                                  nrow = 6, ncol = 2, page = j)
     ggsave(plot = x,
            filename = paste0("../figures/prot_", dirs[i], "-", j, ".png"),
-           width = 10, height = 6, units = "in")
+           width = 10, height = 12, units = "in")
     ggsave(plot = x,
            filename = paste0("../figures/prot_", dirs[i], "-", j, ".tiff"),
-           width = 10, height = 6, units = "in")
+           width = 10, height = 12, units = "in")
   }
 }
 
