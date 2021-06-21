@@ -260,27 +260,6 @@ for (i in seq_along(preds)){
 
 
 
-# Predictions table: O. volvulus
-X <- readRDS("./03_Ovolvulus/output/analysis.rds")
-prots <- readRDS("./00_general_datasets/00_proteins_20201007.rds")
-X$mypreds$Seq <- mapply(
-  function(prot, st, en){
-    substr(prots$TSeq_sequence[prots$UID == prot], st, en)
-  },
-  X$mypreds$Info_UID,
-  X$mypreds$start_pos,
-  X$mypreds$end_pos)
-
-names(X$mypreds) <- c("Protein", "Start pos", "End pos", "Length", "Average Prob.", "Sequence")
-X$mypreds[2:4] <- lapply(X$mypreds[2:4], as.integer)
-X <- X$mypreds %>%
-  dplyr::filter(`Average Prob.` >= 0.75)
-
-kableExtra::kable(X, format = "latex", longtable = TRUE, digits = 2)
-
-
-
-
 # Raw p-values table
 pvals.raw%>%
   ungroup() %>%
