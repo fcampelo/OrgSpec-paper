@@ -60,6 +60,9 @@ for (i in seq_along(feat_imp)){
 }
 rm(tmp)
 
+df <- df %>%
+  mutate(Feature = gsub("feat_", "", Feature))
+
 # Compare distribution of normalised importance values 
 df %>%
   group_by(Organism, Model) %>%
@@ -89,7 +92,7 @@ df %>%
               names_from = "Model",
               values_from = "Importance") %>%
   mutate(Type = factor(Type)) %>%
-ggplot(aes(x = OrgSpec, y = Heter, colour = Type)) + 
+  ggplot(aes(x = OrgSpec, y = Heter, colour = Type)) + 
   geom_point(pch = 16, alpha = .6, stroke = 0) + 
   geom_smooth(aes(colour = NULL), col = 1, lty = 2, method = "lm", se = FALSE)+
   scale_x_log10() + scale_y_log10() +
@@ -213,39 +216,6 @@ ggsave(last_plot(), width = 9, height = 12,
                          fig.format))
 
 # Occurrence among top K for OrgSpec and heterogeneous models
-for (k in c(5, 10, 15, 30)){
-  dfK %>%
-    filter(Rank <= k) %>%
-    select(-Importance) %>%
-    group_by(Model, Feature) %>%
-    summarise(Count = n(),
-              Type  = first(Type)) %>%
-    pivot_wider(id_cols = c("Feature", "Type"), 
-                names_from = Model, values_from = Count) %>%
-    mutate(Heter = ifelse(is.na(Heter), 0, Heter),
-           OrgSpec = ifelse(is.na(OrgSpec), 0, OrgSpec)) %>%
-    ggplot(aes(x = Heter, y = OrgSpec)) + 
-    geom_point(aes(colour = Type), size = 4, 
-               show.legend = (k == 5)) + 
-    xlim(-.2, 3.2) + ylim(-.2, 3.2) +
-    geom_text_repel(aes(label = Feature, colour = Type), 
-                    force = 2,
-                    max.overlaps = 50, show.legend = FALSE) +
-    scale_color_brewer(type = "qual", drop = FALSE) +
-    scale_fill_brewer(type = "qual", drop = FALSE) +
-    guides(colour = guide_legend(override.aes = list(alpha = 1))) +
-    theme_light() + 
-    theme(legend.position = c(.8,.7),
-          legend.background = element_blank()) + 
-    xlab(paste0("Feature Occurrences among top ", k, ": Heter models")) + 
-    ylab(paste0("Feature Occurrences among top ", k, ": OrgSpec models"))
-  ggsave(last_plot(), width = 7, height = 7,
-         filename = paste0("../figures/04c", k, " feature occurrence by model", 
-                           fig.format))
-}
-
-
-# Make gif
 for (k in 1:30){
   tmp <- dfK %>%
     filter(Rank <= k) %>%
@@ -261,150 +231,172 @@ for (k in 1:30){
   }
 }
 
+df.ani %>%
+  filter(topK %in% c(5, 10, 20, 30)) %>%
+  pivot_wider(id_cols = c("Feature", "Type", "topK"), 
+              names_from = Model, values_from = Count) %>%
+  mutate(Heter = ifelse(is.na(Heter), 0, Heter),
+         OrgSpec = ifelse(is.na(OrgSpec), 0, OrgSpec),
+         topK    = factor(sprintf("Top %02d features", topK),
+                          ordered = TRUE)) %>%
+  ggplot(aes(x = Heter, y = OrgSpec)) + 
+  geom_point(aes(colour = Type), size = 4) + 
+  xlim(-.5, 3.5) + ylim(-.5, 3.5) +
+  facet_wrap(topK ~ ., ncol = 2) +
+  geom_text_repel(aes(label = Feature, colour = Type), 
+                  force = 2,
+                  max.overlaps = 50, show.legend = FALSE) +
+  scale_color_brewer(type = "qual", drop = FALSE) +
+  scale_fill_brewer(type = "qual", drop = FALSE) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  theme_light() + 
+  theme(strip.text = element_text(colour = "black"),
+        legend.position = "top") +
+  xlab(paste0("Feature Occurrences among top K: Heter models")) + 
+  ylab(paste0("Feature Occurrences among top K: OrgSpec models"))
+ggsave(last_plot(), width = 15, height = 12,
+       filename = paste0("../figures/04c - feature occurrence by model", 
+                         fig.format))
+
+
+
+
 # ========================= Check Neighbourhoods ========================= #
 
-for (i in seq_along(dirs)){
-  tmp <- readRDS(paste0(dirs[i], "/data/splits/01_training.rds")) %>%
-    as_tibble() %>%
-    select(-starts_with("Info")) %>%
-    mutate(Organism = orgs[i]) %>%
-    select(Organism, starts_with("feat"), Class)
-  
-  if (i == 1) {
-    alldata <- tmp
-  } else {
-    alldata <- bind_rows(alldata, tmp)
-  }
-}
-rm(tmp)
+recalculate <- FALSE
 
-# Add a heterogeneous dataset
-alldata <- bind_rows(
-  alldata, 
-  readRDS("./03_Ovolvulus/data/heterogeneous_data/df_heterogeneous.rds") %>%
-    as_tibble() %>%
-    select(-starts_with("Info")) %>%
-    mutate(Organism = "Heterogeneous") %>%
-    select(Organism, starts_with("feat"), Class))
-
-# Remove CTs and dipeptide features
-alldata <- alldata[, c(1:83, 427:446, 847)]
-
-proj.data <- alldata %>%
-  mutate(across(starts_with("feat_"), ~(.x - min(.x))/(1e-12 + diff(range(.x)))))
-
-idx <- duplicated(proj.data %>% select(starts_with("feat_")))
-
-proj.data <- proj.data[which(!idx), ]
-
-rm(alldata)
-saveRDS(proj.data, "./proj_data.rds")
-
-for (i in seq_along(unique(proj.data$Organism))){
-  for (perp in c(5,25,100)){
-    cat("\n", orgs[i], ": Perp = ", perp, "\n")
-    tsne <- proj.data %>%
-      filter(Organism == orgs[i]) %>%
-      select(starts_with("feat_")) %>%
-      Rtsne(dims        = 2, 
-            theta       = 0.1,
-            perplexity  = perp, 
-            verbose     = TRUE,
-            max_iter    = 2000,
-            num_threads = 7)
-    tmp <- as_tibble(tsne$Y) %>%
-      mutate(Organism = orgs[i],
-             Class    = as.factor(filter(proj.data, 
-                                         Organism == orgs[i])$Class),
-             Perplexity = perp)
-    if (i == 1 & perp == 5) {
-      tsne.df <- tmp
+if (!recalculate){
+  proj.data <- readRDS("./proj_data.rds")
+  tsne.df   <- readRDS("./proj_data_tsne.rds")
+  tsne.all  <- readRDS("./proj_data_tsne_all.rds")
+} else {
+  for (i in seq_along(dirs)){
+    tmp <- readRDS(paste0(dirs[i], "/data/splits/01_training.rds")) %>%
+      as_tibble() %>%
+      select(-starts_with("Info")) %>%
+      mutate(Organism = orgs[i]) %>%
+      select(Organism, starts_with("feat"), Class)
+    
+    if (i == 1) {
+      alldata <- tmp
     } else {
-      tsne.df <- rbind(tsne.df, tmp)
+      alldata <- bind_rows(alldata, tmp)
     }
   }
+  rm(tmp)
+  
+  # Add a heterogeneous dataset
+  alldata <- bind_rows(
+    alldata, 
+    readRDS("./03_Ovolvulus/data/heterogeneous_data/df_heterogeneous.rds") %>%
+      as_tibble() %>%
+      select(-starts_with("Info")) %>%
+      mutate(Organism = "Heterogeneous") %>%
+      select(Organism, starts_with("feat"), Class))
+  
+  # Remove CTs and dipeptide features
+  alldata <- alldata[, c(1:83, 427:446, 847)]
+  
+  proj.data <- alldata %>%
+    mutate(across(starts_with("feat_"), ~(.x - min(.x))/(1e-12 + diff(range(.x)))))
+  
+  idx <- duplicated(proj.data %>% select(starts_with("feat_")))
+  
+  proj.data <- proj.data[which(!idx), ]
+  
+  rm(alldata)
+  saveRDS(proj.data, "./proj_data.rds")
+  
+  for (i in seq_along(unique(proj.data$Organism))){
+    for (perp in c(5,25,100)){
+      cat("\n", orgs[i], ": Perp = ", perp, "\n")
+      tsne <- proj.data %>%
+        filter(Organism == orgs[i]) %>%
+        select(starts_with("feat_")) %>%
+        Rtsne(dims        = 2, 
+              theta       = 0.1,
+              perplexity  = perp, 
+              verbose     = TRUE,
+              max_iter    = 2000,
+              num_threads = 7)
+      tmp <- as_tibble(tsne$Y) %>%
+        mutate(Organism = orgs[i],
+               Class    = as.factor(filter(proj.data, 
+                                           Organism == orgs[i])$Class),
+               Perplexity = perp)
+      if (i == 1 & perp == 5) {
+        tsne.df <- tmp
+      } else {
+        tsne.df <- rbind(tsne.df, tmp)
+      }
+    }
+  }
+  
+  saveRDS(tsne.df, "./proj_data_tsne.rds")
+  
+  # unified tSNE projection 
+  tsne.all <- proj.data %>%
+    select(starts_with("feat_")) %>%
+    Rtsne(dims        = 2, 
+          theta       = 0.1,
+          perplexity  = 100, 
+          verbose     = TRUE,
+          max_iter    = 2000,
+          num_threads = 6)
+  
+  tsne.all <- as_tibble(tsne.all$Y) %>%
+    mutate(Organism = proj.data$Organism,
+           Class    = as.factor(proj.data$Class))
+  
+  saveRDS(tsne.all, "./proj_data_tsne_all.rds")
+  
 }
-
-saveRDS(tsne.df, "./proj_data_tsne.rds")
 
 
 tsne.df %>% 
   mutate(Perplexity = factor(paste0("Perpl. = ", Perplexity), 
                              levels = paste0("Perpl. = ", 
-                                             unique(tsne.df$Perplexity)))) %>%
+                                             unique(tsne.df$Perplexity))),
+         Class = ifelse(Class == 1, "Positive", "Negative")) %>%
   ggplot(aes(x = V1, y = V2, colour = Class)) + 
   geom_point(pch = 15, alpha = .1, size = 2, stroke = 0) + 
   facet_wrap(Organism ~ Perplexity, scales = "free") + 
   scale_color_brewer(type = "qual") +
-  guides(colour = guide_legend(override.aes = list(size=5)))+
+  guides(colour = guide_legend(override.aes = list(alpha=1)))+
   theme_light() + 
   theme(strip.text = element_text(colour = "black"))
 ggsave(last_plot(), width = 12, height = 12,
        filename = paste0("../figures/05 tSNE by Org with col=Class", 
                          fig.format))
 
-
-tsne.df %>% 
-  filter(Perplexity == 100) %>%
-  ggplot(aes(x = V1, y = V2, colour = Class)) + 
-  geom_point(pch = 15, alpha = .2, size = 2, stroke = 0) + 
-  facet_wrap(Organism ~ ., scales = "free") + 
-  scale_color_brewer(type = "qual") +
-  guides(colour = guide_legend(override.aes = list(size=5, alpha = 1)))+
-  theme_light() + 
-  theme(strip.text = element_text(colour = "black"))
-
-
-
-# Full tSNE
-tsne.all <- proj.data %>%
-  select(starts_with("feat_")) %>%
-  Rtsne(dims        = 2, 
-        theta       = 0.1,
-        perplexity  = 100, 
-        verbose     = TRUE,
-        max_iter    = 2000,
-        num_threads = 6)
-
-tsne.all <- as_tibble(tsne.all$Y) %>%
-  mutate(Organism = proj.data$Organism,
-         Class    = as.factor(proj.data$Class))
-
-saveRDS(tsne.all, "./proj_data_tsne_all.rds")
-
 tsne.all %>%
-  mutate(Organism = relevel(factor(Organism), ref = "Heterogeneous")) %>%
+  mutate(Organism = relevel(factor(Organism), ref = "Heterogeneous"),
+         Class = ifelse(Class == 1, "Positive", "Negative")) %>%
   ggplot(aes(x = V1, y = V2, 
              colour = Class)) + 
-  geom_point(size = .2) + 
+  geom_point(pch = 15, alpha = .1, size = 2, stroke = 0) +
   scale_color_brewer(type = "qual") +
-  guides(colour = guide_legend(override.aes = list(size=5)))+
+  guides(colour = guide_legend(override.aes = list(alpha=1)))+
   theme_light() + 
   theme(strip.text = element_text(colour = "black")) + 
-  facet_wrap(Organism ~ ., nrow = 1) + 
+  facet_wrap(Organism ~ ., nrow = 2) + 
   ggtitle("t-SNE projection", 
           subtitle = "(Heterogeneous contains examples from many distinct pathogens, including samples from EBV, HepC and Ovolvulus)")
-ggsave(last_plot(), width = 18, height = 6,
+ggsave(last_plot(), width = 9, height = 9,
        filename = paste0("../figures/06 tSNE unified projection", 
                          fig.format))
 
-
-
-tsne.all %>%
-  mutate(Organism = relevel(factor(Organism), ref = "Heterogeneous"),
-         IsHeter = ifelse(Organism == "Heterogeneous",
-                          "Heterogeneous",
-                          "Individual Organisms")) %>%
-  ggplot(aes(x = V1, y = V2, 
-             colour = Class)) + 
-  geom_point(pch = 16, alpha = .2, size = 3, stroke = 0) + 
-  scale_color_brewer(type = "qual") +
-  guides(colour = guide_legend(override.aes = list(size=5, alpha = 1)))+
-  theme_light() + xlim(-60, 60) + ylim(-60, 60) +
-  theme(strip.text = element_text(colour = "black")) + 
-  ggtitle("t-SNE projection") + 
-  facet_wrap(Organism ~ ., nrow = 1)
-
-ggsave(last_plot(), width = 18, height = 6,
-       filename = paste0("../figures/06b tSNE unified projection 2", 
+tsne.df %>% 
+  filter(Perplexity == 100) %>%
+  mutate(Class = ifelse(Class == 1, "Positive", "Negative")) %>%
+  ggplot(aes(x = V1, y = V2)) + 
+  stat_density_2d(aes(fill = ..density..), 
+                  geom = "raster", contour = FALSE) +
+  geom_point(pch = 16, stroke = 0, size = .2) +
+  facet_grid(Organism ~ Class) + 
+  scale_fill_distiller(palette=4, direction=1) +
+  theme_light() + 
+  theme(strip.text = element_text(colour = "black"))
+ggsave(last_plot(), width = 9, height = 10,
+       filename = paste0("../figures/07 tSNE densities", 
                          fig.format))
