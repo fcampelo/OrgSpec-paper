@@ -24,21 +24,21 @@ names(preds) <- sapply(dirs, function(x)strsplit(x, split = "_")[[1]][2])
 
 for (i in seq_along(dirs)){
   mydata <- readRDS(paste0(dirs[i], "/output/analysis.rds"))
-  
+
   # Extract predictions data
   preds[[i]]$mypreds <- mydata$mypreds
   preds[[i]]$myprobs <- mydata$myprobs
-  
+
   # Extract performance data
   tmp <- mydata$myperf_pep %>%
     dplyr::mutate(Organism = names(preds)[i]) %>%
     dplyr::filter(!(Metric %in% c("SPEC", "F1"))) # <-- not needed for the paper
-  
+
   # Extract p-values
   tmp2 <- mydata$Pvals_pep %>%
     dplyr::select(-SPEC) %>%                 # <-- not needed for the paper
     dplyr::mutate(Organism = names(preds)[i])
-  
+
   # Extract ROC curves
   cl.cols <- grep("_class", names(mydata$myres_pep))
   pr.cols <- grep("_prob", names(mydata$myres_pep))
@@ -60,11 +60,11 @@ for (i in seq_along(dirs)){
                                FPR    = myperf$fpr))
     }
   }
-  
+
   tmp4 <- mydata$Pvals_pep.raw %>%
     dplyr::select(-SPEC) %>%                 # <-- not needed for the paper
     dplyr::mutate(Organism = names(preds)[i])
-  
+
   if (i == 1){
     df    <- tmp
     pvals <- tmp2
@@ -153,7 +153,7 @@ ggsave(plot = mp, filename = "../figures/res_all_pathogens_2.tiff",
 # Summary results table
 x <- df %>%
   select(Organism, Method, Metric, Value, StdErr, NoLeak) %>%
-  mutate(Value  = round(Value, 2), 
+  mutate(Value  = round(Value, 2),
          StdErr = round(StdErr, 2),
          Field  = paste0("SSS", Value, "PM ", StdErr, "SSS")) %>%
   group_by(Organism, Method, Metric) %>%
@@ -219,8 +219,8 @@ for (i in seq_along(preds)){
                                       labels = c("Known epitope", NA, "New epitope"),
                                       exclude = NULL)) %>%
     dplyr::select(-RF_OrgSpec_class)
-  
-  
+
+
   mp <- tmp %>%
     ggplot(aes(x = Info_center_pos,
                y = Class)) +
@@ -244,7 +244,7 @@ for (i in seq_along(preds)){
           legend.title = element_blank(),
           legend.position = "none",
           legend.background = element_rect(colour = "#aaaaaa"))
-  
+
   for (j in seq(1, ceiling(length(unique(tmp$Info_UID)) / 12))){
     x <- mp + facet_wrap_paginate(Info_UID ~ .,
                                   scales = "free",
@@ -257,6 +257,27 @@ for (i in seq_along(preds)){
            width = 10, height = 12, units = "in")
   }
 }
+
+
+
+# Predictions table: O. volvulus
+X <- readRDS("./03_Ovolvulus/output/analysis.rds")
+prots <- readRDS("./00_general_datasets/00_proteins_20201007.rds")
+X$mypreds$Seq <- mapply(
+  function(prot, st, en){
+    substr(prots$TSeq_sequence[prots$UID == prot], st, en)
+  },
+  X$mypreds$Info_UID,
+  X$mypreds$start_pos,
+  X$mypreds$end_pos)
+
+names(X$mypreds) <- c("Protein", "Start pos", "End pos", "Length", "Average Prob.", "Sequence")
+X$mypreds[2:4] <- lapply(X$mypreds[2:4], as.integer)
+X <- X$mypreds %>%
+  dplyr::filter(`Average Prob.` >= 0.75)
+
+kableExtra::kable(X, format = "latex", longtable = TRUE, digits = 2)
+
 
 
 
